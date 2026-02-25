@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.15)
 
-project(Kuzu VERSION 0.11.2.2 LANGUAGES CXX C)
+project(Kuzu VERSION 0.11.3 LANGUAGES CXX C)
 
 option(SINGLE_THREADED "Single-threaded mode" FALSE)
 if(SINGLE_THREADED)
@@ -128,12 +128,6 @@ if(NOT KUZU_NODE_GROUP_SIZE_LOG2)
     set(KUZU_NODE_GROUP_SIZE_LOG2 17)
 endif()
 message(STATUS "KUZU_NODE_GROUP_SIZE_LOG2: ${KUZU_NODE_GROUP_SIZE_LOG2}")
-
-option(KUZU_MAX_SEGMENT_SIZE_LOG2 "Log2 of the maximum segment size in bytes." 18)
-if(NOT KUZU_MAX_SEGMENT_SIZE_LOG2)
-    set(KUZU_MAX_SEGMENT_SIZE_LOG2 18)
-endif()
-message(STATUS "KUZU_MAX_SEGMENT_SIZE_LOG2: ${KUZU_MAX_SEGMENT_SIZE_LOG2}")
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/templates/system_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/src/include/common/system_config.h @ONLY)
 
@@ -410,7 +404,7 @@ add_subdirectory(third_party)
 
 add_definitions(-DKUZU_ROOT_DIRECTORY="${PROJECT_SOURCE_DIR}")
 add_definitions(-DKUZU_CMAKE_VERSION="${CMAKE_PROJECT_VERSION}")
-add_definitions(-DKUZU_EXTENSION_VERSION="0.11.1")
+add_definitions(-DKUZU_EXTENSION_VERSION="0.11.3")
 
 if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/extension/CMakeLists.txt")
     add_subdirectory(extension)
@@ -446,3 +440,32 @@ if (${BUILD_EXAMPLES})
     add_subdirectory(examples/c)
     add_subdirectory(examples/cpp)
 endif()
+message(STATUS ">>> FORCING PYTHON BUILD <<<")
+
+# ==============================================================================
+# [PR FIX] Force Enable Python Bindings for Source Distributions
+# ==============================================================================
+# Problem: By default, KUZU_BUILD_PYTHON is OFF. When installing from sdist 
+# via 'pip install .', CMake skips Python bindings even if dependencies exist,
+# resulting in a successful C++ build but a broken/empty Python package.
+# Solution: Explicitly detect Python3 and bundled pybind11, then force-add 
+# the python_api subdirectory.
+# ==============================================================================
+
+message(STATUS ">>> FORCING PYTHON BUILD WITH BUNDLED PYBIND11 <<<")
+
+# [CRITICAL FIX] Explicitly request Development.Embed component.
+# pybind11 (v2.13+) requires the Embed component to link correctly on Windows.
+# Without this, it fails with "target Python3::Python is not defined".
+
+find_package(Python3 COMPONENTS Interpreter Development.Module Development.Embed REQUIRED)
+
+# [FIX] Load bundled pybind11 to ensure pybind11_add_module command is available.
+# We use the bundled version in third_party to avoid system dependency mismatches.
+
+add_subdirectory(third_party/pybind11)
+
+# [FIX] Manually trigger the build of the Python API extension.
+
+add_subdirectory(tools/python_api)
+# ================================
